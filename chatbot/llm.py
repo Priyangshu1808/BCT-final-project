@@ -1,75 +1,54 @@
 import os
-import requests
+from google.api_core.exceptions import ResourceExhausted
+import google.generativeai as genai
 from dotenv import load_dotenv
 from chatbot.prompts import SYSTEM_PROMPT
 
 load_dotenv()
 
-# Resolve Grok API key from environment variables or Streamlit secrets
-api_key = os.getenv("XAI_API_KEY")
+# Resolve API key from environment variables or Streamlit secrets fallback
+api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     try:
         import streamlit as st
-        api_key = st.secrets.get("XAI_API_KEY") or st.secrets.get("xai_api_key")
+        api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("gemini_api_key")
     except Exception:
         pass
 
+genai.configure(api_key=api_key, transport="rest")
 
-def ask_grok(question, context, history=None):
-    if not api_key:
-        return (
-            "⚠️ Grok API key is not configured.\n\n"
-            "Please add `XAI_API_KEY` to your environment variables or Streamlit Secrets."
-        )
+model = genai.GenerativeModel("gemini-2.5-flash")
 
-    history_messages = []
+
+def ask_gemini(question, context, history=None):
+    history_str = ""
     if history:
-        for msg in history[-6:]:  # include last 3 turns
-            role = "user" if msg["role"] == "user" else "assistant"
-            history_messages.append({"role": role, "content": msg["content"]})
+        for msg in history[-6:]:  # include last 3 turns (6 messages)
+            role_label = "USER" if msg["role"] == "user" else "ASSISTANT"
+            history_str += f"{role_label}: {msg['content']}\n"
 
-    # Combine query with context
     prompt = f"""
+{SYSTEM_PROMPT}
+
 CONTEXT:
 {context}
 
+CONVERSATION HISTORY:
+{history_str}
 USER: {question}
+ASSISTANT:
 """
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT}
-    ]
-    messages.extend(history_messages)
-    messages.append({"role": "user", "content": prompt})
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "model": "grok-2",
-        "messages": messages,
-        "temperature": 0.3
-    }
-
     try:
-        response = requests.post(
-            "https://api.x.ai/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+        response = model.generate_content(prompt)
 
-    except requests.exceptions.HTTPError as http_err:
-        if response.status_code == 401:
-            return "⚠️ xAI API authentication failed. Please verify your XAI_API_KEY."
-        elif response.status_code == 429:
-            return "⚠️ xAI API rate limit exceeded."
-        else:
-            return f"HTTP Error: {http_err}"
+        return response.text
+
+    except ResourceExhausted:
+        return (
+            "⚠️ Gemini API quota exceeded.\n\n"
+            "Please wait until your quota resets or use another API key."
+        )
+
     except Exception as e:
-        return f"Error calling Grok API: {str(e)}"
+        return f"Error: {str(e)}"
