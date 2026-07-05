@@ -1,4 +1,5 @@
 import os
+from google.api_core.exceptions import ResourceExhausted
 import google.generativeai as genai
 from dotenv import load_dotenv
 from chatbot.prompts import SYSTEM_PROMPT
@@ -10,7 +11,12 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 
-def ask_gemini(question, context):
+def ask_gemini(question, context, history=None):
+    history_str = ""
+    if history:
+        for msg in history[-6:]:  # include last 3 turns (6 messages)
+            role_label = "USER" if msg["role"] == "user" else "ASSISTANT"
+            history_str += f"{role_label}: {msg['content']}\n"
 
     prompt = f"""
 {SYSTEM_PROMPT}
@@ -18,18 +24,22 @@ def ask_gemini(question, context):
 CONTEXT:
 {context}
 
-QUESTION:
-{question}
-
-ANSWER:
+CONVERSATION HISTORY:
+{history_str}
+USER: {question}
+ASSISTANT:
 """
 
-    response = model.generate_content(
-        prompt,
-        generation_config={
-            "temperature": 0.2,   # 🔥 more factual
-            "top_p": 0.9
-        }
-    )
+    try:
+        response = model.generate_content(prompt)
 
-    return response.text
+        return response.text
+
+    except ResourceExhausted:
+        return (
+            "⚠️ Gemini API quota exceeded.\n\n"
+            "Please wait until your quota resets or use another API key."
+        )
+
+    except Exception as e:
+        return f"Error: {str(e)}"
