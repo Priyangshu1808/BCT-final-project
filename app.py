@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from chatbot.llm import ask_gemini
+from chatbot.llm import ask_grok
 from chatbot.rag import retrieve_context, index_new_pdf
 
 st.set_page_config(
@@ -192,7 +192,7 @@ if query:
             context, docs = retrieve_context(query)
             
         with st.spinner("Synthesizing answer... 🤖"):
-            answer = ask_gemini(query, context, history=st.session_state.messages[:-1])
+            answer = ask_grok(query, context, history=st.session_state.messages[:-1])
             
         st.markdown(answer)
         
