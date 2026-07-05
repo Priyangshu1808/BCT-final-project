@@ -6,7 +6,16 @@ from chatbot.prompts import SYSTEM_PROMPT
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Resolve API key from environment variables or Streamlit secrets fallback
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    try:
+        import streamlit as st
+        api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("gemini_api_key")
+    except Exception:
+        pass
+
+genai.configure(api_key=api_key, transport="rest")
 
 model = genai.GenerativeModel("gemini-2.5-flash")
 
