@@ -6,7 +6,7 @@ import os
 vector_db = load_vector_db()
 
 
-def retrieve_documents(query, k=6):
+def retrieve_documents(query, k=3):
     results = vector_db.similarity_search_with_score(query, k=k)
     filtered = []
     for doc, score in results:
@@ -19,7 +19,7 @@ def retrieve_documents(query, k=6):
     return filtered
 
 
-def retrieve_context(query, k=6):
+def retrieve_context(query, k=3):
     filtered = retrieve_documents(query, k=k)
     context = ""
     for doc in filtered:

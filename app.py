@@ -115,6 +115,9 @@ if "messages" not in st.session_state:
 if "quick_query" not in st.session_state:
     st.session_state.quick_query = None
 
+if "query_cache" not in st.session_state:
+    st.session_state.query_cache = {}
+
 # Sidebar Content
 with st.sidebar:
     st.markdown("### ⚙️ System Control Room")
@@ -122,6 +125,7 @@ with st.sidebar:
     if st.button("🗑 Clear Conversation History", use_container_width=True):
         st.session_state.messages = []
         st.session_state.quick_query = None
+        st.session_state.query_cache = {}
         st.success("Chat history cleared!")
         st.rerun()
         
@@ -187,14 +191,28 @@ if query:
     with st.chat_message("user"):
         st.markdown(query)
 
+    cache_key = query.strip().lower()
+
     with st.chat_message("assistant"):
-        with st.spinner("Consulting the college knowledge base... 🔍"):
-            context, docs = retrieve_context(query)
+        if cache_key in st.session_state.query_cache:
+            cached_data = st.session_state.query_cache[cache_key]
+            answer = cached_data["answer"]
+            docs = cached_data["docs"]
+            st.markdown(answer)
+        else:
+            with st.spinner("Consulting the college knowledge base... 🔍"):
+                context, docs = retrieve_context(query)
+                
+            with st.spinner("Synthesizing answer... 🤖"):
+                answer = ask_gemini(query, context, history=st.session_state.messages[:-1])
+                
+            st.markdown(answer)
             
-        with st.spinner("Synthesizing answer... 🤖"):
-            answer = ask_gemini(query, context, history=st.session_state.messages[:-1])
-            
-        st.markdown(answer)
+            # Store response in session cache
+            st.session_state.query_cache[cache_key] = {
+                "answer": answer,
+                "docs": docs
+            }
         
         # Style and render sources beautifully
         if docs:
